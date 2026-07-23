@@ -8,6 +8,5 @@ export const ENDPOINTS = {
   REVIEW_DETAIL: '/api/v1/review/detail',
   REVIEW_UPDATE: '/api/v1/review/update',
   REVIEW_CONFIRM: '/api/v1/review/confirm',
-  DOWNSTREAM_CALLBACK: '/api/v1/callback/downstream',
   CANCEL_UPLOAD: '/api/v1/receive/cancel',
 };

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, memo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, Loader2, AlertCircle, Calendar, RefreshCw, Clock, RotateCcw } from 'lucide-react';
 import { InfoSection } from '@/components/InfoSection';
 import { StatusBadge } from '@/components/StatusBadge';
@@ -54,11 +54,13 @@ const InputField = memo(({
   value,
   onChange,
   placeholder = '',
+  readOnly = false,
 }: {
   label: string;
   value: string | number | null;
   onChange: (value: string | number | null) => void;
   placeholder?: string;
+  readOnly?: boolean;
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -82,8 +84,9 @@ const InputField = memo(({
           onChange(val);
         }}
         placeholder={placeholder}
+        readOnly={readOnly}
         rows={1}
-        className="input-field resize-none overflow-hidden"
+        className={`input-field resize-none overflow-hidden ${readOnly ? 'bg-gray-50 cursor-not-allowed text-gray-500' : ''}`}
       />
     </div>
   );
@@ -95,12 +98,14 @@ const TextAreaField = memo(({
   onChange,
   placeholder = '',
   rows = 3,
+  readOnly = false,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   rows?: number;
+  readOnly?: boolean;
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -120,8 +125,9 @@ const TextAreaField = memo(({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        readOnly={readOnly}
         rows={rows}
-        className="input-field resize-none overflow-hidden"
+        className={`input-field resize-none overflow-hidden ${readOnly ? 'bg-gray-50 cursor-not-allowed text-gray-500' : ''}`}
       />
     </div>
   );
@@ -130,8 +136,30 @@ const TextAreaField = memo(({
 export function ReviewPage() {
   const { so_no } = useParams<{ so_no: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const reviewedFromUpload = (location.state as any)?.reviewed === true;
   const [loading, setLoading] = useState(true);
   const [confirming, setConfirming] = useState(false);
+  const SESSION_KEY = 'upload_page_state';
+
+  // 返回上传页时，把当前 SO 标记为已审查（status=6）
+  const goBackToUpload = useCallback(() => {
+    try {
+      const raw = sessionStorage.getItem(SESSION_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw);
+        if (saved && Array.isArray(saved.items) && so_no) {
+          saved.items = saved.items.map((it: any) =>
+            it.soNo === so_no ? { ...it, parseStatus: 6, parseStatusText: '已审查' } : it
+          );
+          sessionStorage.setItem(SESSION_KEY, JSON.stringify(saved));
+        }
+      }
+    } catch {
+      // ignore
+    }
+    navigate('/upload');
+  }, [navigate, so_no]);
   const [reviewData, setReviewData] = useState<ReviewData>({
     hbl_no: '',
     so_no: '',
@@ -171,7 +199,11 @@ export function ReviewPage() {
         if (response.code === 0 && response.data) {
           setReviewData(response.data);
           originalDataRef.current = response.data;
-          setStatus(response.data.status || 5);
+          // 兼容 status 在 response.data 或 response.data.data 中
+          const data = response.data as any;
+          const apiStatus: number = data?.status ?? data?.data?.status ?? 5;
+          // 从"详情"按钮进来时，强制显示已审查
+          setStatus(reviewedFromUpload ? 6 : apiStatus);
           setParseStatus('completed');
           setRetryCount(0);
         } else if (response.code === 1001) {
@@ -254,7 +286,11 @@ export function ReviewPage() {
         if (response.code === 0 && response.data) {
           setReviewData(response.data);
           originalDataRef.current = response.data;
-          setStatus(response.data.status || 5);
+          // 兼容 status 在 response.data 或 response.data.data 中
+          const data = response.data as any;
+          const apiStatus: number = data?.status ?? data?.data?.status ?? 5;
+          // 从"详情"按钮进来时，强制显示已审查
+          setStatus(reviewedFromUpload ? 6 : apiStatus);
           setParseStatus('completed');
           setRetryCount(0);
           setMessage({
@@ -352,11 +388,19 @@ export function ReviewPage() {
     try {
       // 有修改时先保存
       if (isDirty) {
+        // 将 issue_date 从 "2026-06-29" 转为后端期望的 ISO 格式
+        const transformedOtherInfo = {
+          ...reviewData.other_info,
+          issue_date: reviewData.other_info.issue_date
+            ? new Date(reviewData.other_info.issue_date).toISOString()
+            : null,
+        };
+
         const saveResponse = await updateReviewData(so_no, {
           basic_info: reviewData.basic_info,
           transport_info: reviewData.transport_info,
           cargo_info: reviewData.cargo_info,
-          other_info: reviewData.other_info,
+          other_info: transformedOtherInfo,
         });
 
         if (saveResponse.code !== 0) {
@@ -375,6 +419,8 @@ export function ReviewPage() {
           type: 'success',
           text: response.msg || '确认信息成功',
         });
+        // 确认成功后 1.5s 自动返回上传页面
+        setTimeout(() => goBackToUpload(), 1500);
       } else {
         setMessage({
           type: 'error',
@@ -475,7 +521,7 @@ export function ReviewPage() {
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-4">
               <button
-                onClick={() => navigate('/upload')}
+                onClick={goBackToUpload}
                 className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition-colors"
               >
                 <ArrowLeft className="w-6 h-6" />
@@ -530,46 +576,63 @@ export function ReviewPage() {
             </div>
           )}
 
+          <fieldset disabled={status === 6} className={status === 6 ? 'opacity-80 pointer-events-none' : ''}>
           <div className="card">
             <InfoSection title="基本信息">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <InputField
-                  label="发货人"
-                  value={reviewData.basic_info.Shipper}
-                  onChange={(v) => handleInputChange('Shipper', v as string)}
-                />
-                <InputField
-                  label="收货人"
-                  value={reviewData.basic_info.Consignee}
-                  onChange={(v) => handleInputChange('Consignee', v as string)}
-                />
-                <InputField
-                  label="通知人"
-                  value={reviewData.basic_info['NOTIFY PARTY']}
-                  onChange={(v) => handleInputChange('NOTIFY PARTY', v as string)}
-                />
-                <InputField
-                  label="目的港代理方"
-                  value={reviewData.basic_info.agent_at_destination}
-                  onChange={(v) => handleInputChange('agent_at_destination', v as string)}
-                />
-                <InputField
-                  label="ALSO NOTIFY"
-                  value={reviewData.basic_info['ALSO NOTIFY']}
-                  onChange={(v) => handleInputChange('ALSO NOTIFY', v as string)}
-                />
-                <InputField
-                  label="EXPORT INSTRUCTION"
-                  value={reviewData.basic_info['EXPORT INSTRUCTION']}
-                  onChange={(v) => handleInputChange('EXPORT INSTRUCTION', v as string)}
-                />
-                <div className="md:col-span-2">
-                  <TextAreaField
-                    label="REMARK"
-                    value={reviewData.basic_info.remark}
-                    onChange={(v) => handleInputChange('remark', v)}
-                  />
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col md:flex-row gap-4">
+                  <div className="flex-1">
+                    <InputField
+                      label="发货人"
+                      value={reviewData.basic_info.Shipper}
+                      onChange={(v) => handleInputChange('Shipper', v as string)}
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <InputField
+                      label="目的港代理方"
+                      value={reviewData.basic_info.agent_at_destination}
+                      onChange={(v) => handleInputChange('agent_at_destination', v as string)}
+                    />
+                  </div>
                 </div>
+                <div className="flex flex-col md:flex-row gap-4">
+                  <div className="flex-1">
+                    <InputField
+                      label="收货人"
+                      value={reviewData.basic_info.Consignee}
+                      onChange={(v) => handleInputChange('Consignee', v as string)}
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <InputField
+                      label="EXPORT INSTRUCTION"
+                      value={reviewData.basic_info['EXPORT INSTRUCTION']}
+                      onChange={(v) => handleInputChange('EXPORT INSTRUCTION', v as string)}
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-col md:flex-row gap-4">
+                  <div className="flex-1">
+                    <InputField
+                      label="通知人"
+                      value={reviewData.basic_info['NOTIFY PARTY']}
+                      onChange={(v) => handleInputChange('NOTIFY PARTY', v as string)}
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <InputField
+                      label="ALSO NOTIFY"
+                      value={reviewData.basic_info['ALSO NOTIFY']}
+                      onChange={(v) => handleInputChange('ALSO NOTIFY', v as string)}
+                    />
+                  </div>
+                </div>
+                <TextAreaField
+                  label="REMARK"
+                  value={reviewData.basic_info.remark}
+                  onChange={(v) => handleInputChange('remark', v)}
+                />
               </div>
             </InfoSection>
 
@@ -701,7 +764,7 @@ export function ReviewPage() {
 
           <div className="mt-6 card">
             <div className="flex items-center justify-between gap-4">
-              {(status === 5 || status === 6) && (
+              {status === 5 && (
                 <button
                   onClick={handleReset}
                   disabled={!isDirty}
@@ -711,11 +774,14 @@ export function ReviewPage() {
                   恢复
                 </button>
               )}
+              {status === 6 && (
+                <div />
+              )}
               <div className="flex gap-3 ml-auto">
                 <button
                   onClick={handleConfirm}
                   disabled={confirming || status !== 5}
-                  className="btn-primary flex items-center gap-2"
+                  className={`btn-primary flex items-center gap-2 ${status !== 5 ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   <CheckCircle className="w-4 h-4" />
                   {confirming ? '确认中...' : '确认信息'}
@@ -731,6 +797,7 @@ export function ReviewPage() {
               </div>
             )}
           </div>
+          </fieldset>
         </div>
       </div>
 

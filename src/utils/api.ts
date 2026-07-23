@@ -30,13 +30,13 @@ export async function resourceQuery(so_no: string): Promise<ApiResponse<Resource
   return response.json();
 }
 
-export async function receiveFile(file: File, so_no: string, hbl_no?: string): Promise<ApiResponse<ReceiveFileResult>> {
+export async function receiveFile(files: File[], soNos: string[], hblNos?: string[]): Promise<ApiResponse<ReceiveFileResult>> {
   const formData = new FormData();
-  formData.append('files', file);
-  formData.append('so_nos', so_no);
+  files.forEach((f) => formData.append('files', f));
+  soNos.forEach((s) => formData.append('so_nos', s));
   
-  if (hbl_no) {
-    formData.append('hbl_nos', hbl_no);
+  if (hblNos && hblNos.length > 0) {
+    hblNos.forEach((h) => formData.append('hbl_nos', h));
   }
 
   const response = await fetch(`${API_BASE_URL}${ENDPOINTS.RECEIVE_FILE}`, {
