@@ -24,7 +24,7 @@ export function HomePage() {
               <div>
                 <h2 className="text-xl font-semibold text-gray-800 mb-2">文件上传页面</h2>
                 <p className="text-gray-500 text-sm mb-4">
-                  上传提单文件，填写 SO NO，系统自动校验 SO NO 是否重复。
+                  上传提单文件，填写 SO号，系统自动校验 SO号 是否重复。
                   确认上传后，系统将发送文件至解析处进行解析。
                 </p>
                 <div className="flex items-center gap-2 text-blue-600 font-medium">
@@ -65,7 +65,7 @@ export function HomePage() {
             <ArrowRight className="w-4 h-4 text-gray-400" />
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-full bg-yellow-500 flex items-center justify-center text-white text-sm font-bold">2</div>
-              <span className="text-gray-600">填写 SO NO</span>
+              <span className="text-gray-600">填写 SO号</span>
             </div>
             <ArrowRight className="w-4 h-4 text-gray-400" />
             <div className="flex items-center gap-2">

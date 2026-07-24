@@ -140,10 +140,12 @@ export function ReviewPage() {
   const reviewedFromUpload = (location.state as any)?.reviewed === true;
   const [loading, setLoading] = useState(true);
   const [confirming, setConfirming] = useState(false);
+  const [status, setStatus] = useState(5);
   const SESSION_KEY = 'upload_page_state';
+  const statusRef = useRef(status);
+  statusRef.current = status;
 
-  // 返回上传页时，把当前 SO 标记为已审查（status=6）
-  const goBackToUpload = useCallback(() => {
+  const doNavigateBack = useCallback(() => {
     try {
       const raw = sessionStorage.getItem(SESSION_KEY);
       if (raw) {
@@ -152,6 +154,7 @@ export function ReviewPage() {
           saved.items = saved.items.map((it: any) =>
             it.soNo === so_no ? { ...it, parseStatus: 6, parseStatusText: '已审查' } : it
           );
+          saved.globalStep = 'processing';
           sessionStorage.setItem(SESSION_KEY, JSON.stringify(saved));
         }
       }
@@ -160,6 +163,40 @@ export function ReviewPage() {
     }
     navigate('/upload');
   }, [navigate, so_no]);
+
+  const handleBackConfirm = useCallback(() => {
+    setShowBackConfirm(false);
+    doNavigateBack();
+  }, [doNavigateBack]);
+
+  // 返回上传页时，把当前 SO 标记为已审查（status=6）
+  const goBackToUpload = useCallback(() => {
+    // 详情模式（已审查）直接返回
+    if (statusRef.current === 6) {
+      doNavigateBack();
+      return;
+    }
+
+    // 审查模式：检查是否有未审查的文件（与上传页"上传新文件"按钮逻辑一致）
+    try {
+      const raw = sessionStorage.getItem(SESSION_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw);
+        if (saved && Array.isArray(saved.items)) {
+          const hasPending = saved.items.some(
+            (it: any) => it.uploadStatus === 'success' && it.parseStatus !== 6
+          );
+          if (!hasPending) {
+            doNavigateBack();
+            return;
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
+    setShowBackConfirm(true);
+  }, [doNavigateBack]);
   const [reviewData, setReviewData] = useState<ReviewData>({
     hbl_no: '',
     so_no: '',
@@ -168,9 +205,9 @@ export function ReviewPage() {
     cargo_info: initialCargoInfo,
     other_info: initialOtherInfo,
   });
-  const [status, setStatus] = useState(5);
-  const [message, setMessage] = useState<{ type: 'success' | 'error' | 'warning'; text: string } | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showBackConfirm, setShowBackConfirm] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error' | 'warning'; text: string } | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const [parseStatus, setParseStatus] = useState<'pending' | 'parsing' | 'completed' | 'failed'>('pending');
   const retryTimerRef = useRef<number | null>(null);
@@ -189,7 +226,7 @@ export function ReviewPage() {
       if (!so_no) {
         setLoading(false);
         setParseStatus('failed');
-        setMessage({ type: 'error', text: '缺少 SO NO 参数' });
+        setMessage({ type: 'error', text: '缺少 SO号 参数' });
         return;
       }
 
@@ -533,7 +570,7 @@ export function ReviewPage() {
                 </div>
                 <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
                   <div className="flex items-center gap-1">
-                    <span className="font-mono bg-gray-200 text-gray-600 px-2 py-0.5 rounded">SO NO: {reviewData.so_no}</span>
+                    <span className="font-mono bg-gray-200 text-gray-600 px-2 py-0.5 rounded">SO号: {reviewData.so_no}</span>
                   </div>
                   {currentStatusInfo && (
                     <span>当前状态: {currentStatusInfo.label}</span>
@@ -809,6 +846,16 @@ export function ReviewPage() {
         cancelText="取消"
         onConfirm={handleConfirmAction}
         onCancel={() => setShowConfirmModal(false)}
+      />
+
+      <ConfirmModal
+        isOpen={showBackConfirm}
+        title="返回上传页"
+        message="当前还有未审查完成的文件，返回将终止本次审查流程，确定要继续吗？"
+        confirmText="确定返回"
+        cancelText="继续审查"
+        onConfirm={handleBackConfirm}
+        onCancel={() => setShowBackConfirm(false)}
       />
     </>
   );

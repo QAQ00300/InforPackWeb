@@ -85,15 +85,15 @@ export function FileList({ files, onRemove, onUpdateSoNo, onSoNoBlur }: FileList
   const getSoNoValidText = (so_no_valid: SoNoValidStatus) => {
     switch (so_no_valid) {
       case 'empty':
-        return '请输入 SO NO';
+        return '请输入 SO号';
       case 'checking':
         return '检查中...';
       case 'valid':
         return '可用';
       case 'duplicate':
-        return 'SO NO 已存在（可重新上传）';
+        return 'SO号 已存在（但可重新上传）';
       case 'confirmed':
-        return 'SO NO 已确认，不可覆盖';
+        return 'SO号 已确认，不可上传';
       default:
         return '';
     }
@@ -140,7 +140,7 @@ export function FileList({ files, onRemove, onUpdateSoNo, onSoNoBlur }: FileList
         <div className="hidden md:grid md:grid-cols-[auto_1fr_auto_auto_auto_auto] gap-4 px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500">
           <div className="w-8" />
           <div>文件名</div>
-          <div className="text-center">SO NO</div>
+          <div className="text-center">SO号</div>
           <div className="hidden md:block text-right">大小</div>
           <div className="hidden md:block text-center">状态</div>
           <div className="w-16" />
@@ -169,7 +169,7 @@ export function FileList({ files, onRemove, onUpdateSoNo, onSoNoBlur }: FileList
                     value={file.so_no}
                     onChange={(e) => onUpdateSoNo(file.id, e.target.value)}
                     onBlur={() => onSoNoBlur(file.id)}
-                    placeholder="请输入 SO NO"
+                    placeholder="请输入 SO号"
                     className={`
                       input-field w-full md:w-auto
                       ${getSoNoInputClass(file.so_no_valid)}

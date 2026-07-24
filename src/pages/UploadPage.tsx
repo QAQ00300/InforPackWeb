@@ -153,7 +153,9 @@ export function UploadPage() {
 
         try {
           const response = await resourceQuery(item.soNo.trim());
-          const status = response.data?.status;
+          const rawStatus = response.data?.status;
+          // 兼容后端返回字符串 "error" 的情况（AI 解析失败回调）
+          const status = typeof rawStatus === 'string' ? 9 : (rawStatus ?? undefined);
           const statusText = response.data?.status_text || getStatusLabel(status);
 
           updates.push({
@@ -243,7 +245,7 @@ export function UploadPage() {
   const handleVerify = useCallback(async (id: string) => {
     const item = items.find(it => it.id === id);
     if (!item || !item.soNo.trim()) {
-      updateItem(id, { verifyStatus: 'error', verifyMsg: '请填写 SO NO' });
+      updateItem(id, { verifyStatus: 'error', verifyMsg: '请填写 SO号' });
       return;
     }
     updateItem(id, { verifyStatus: 'verifying', verifyMsg: '', canUpload: false });
@@ -258,7 +260,7 @@ export function UploadPage() {
             hblNo: response.data.hbl_no || '',
           });
         } else {
-          updateItem(id, { verifyStatus: 'error', verifyMsg: response.data.message || '该 SO NO 不允许上传', canUpload: false });
+          updateItem(id, { verifyStatus: 'error', verifyMsg: response.data.message || '该 SO号 不允许上传', canUpload: false });
         }
       } else {
         updateItem(id, { verifyStatus: 'error', verifyMsg: response.data?.message || response.msg || '核验失败', canUpload: false });
@@ -496,13 +498,13 @@ export function UploadPage() {
                       )}
                     </div>
 
-                    {/* SO NO input + verify button */}
+                    {/* SO号 input + verify button */}
                     <div className="flex gap-3 mb-3">
                       <input
                         type="text"
                         value={item.soNo}
                         onChange={e => updateItem(item.id, { soNo: e.target.value, verifyStatus: 'idle', verifyMsg: '', canUpload: false })}
-                        placeholder="请输入 SO NO"
+                        placeholder="请输入 SO号"
                         disabled={item.verifyStatus === 'success' || item.uploadStatus === 'success'}
                         className={`flex-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                           (item.verifyStatus === 'success' || item.uploadStatus === 'success') ? 'bg-gray-100 cursor-not-allowed border-gray-200' : 'border-gray-300'
